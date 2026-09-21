@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "CareRelay",
+    "slug": "carerelay",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "carerelay",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.carerelay.mobile"
+    },
+    "android": {
+      "package": "com.carerelay.mobile"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
+

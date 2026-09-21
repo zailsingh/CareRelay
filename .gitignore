@@ -1,0 +1,24 @@
+.DS_Store
+.env
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+.venv/
+api/.coverage
+api/htmlcov/
+mobile/.expo/
+mobile/node_modules/
+mobile/coverage/
+mobile/dist/
+mobile/expo-env.d.ts
+
+# Local environment/secrets
+.env.*
+!.env.example
+
+# Native/generated build files
+mobile/ios/Pods/
+mobile/ios/build/
+mobile/android/.gradle/
+mobile/android/app/build/
