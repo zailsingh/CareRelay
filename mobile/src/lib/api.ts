@@ -204,6 +204,80 @@ export type AskResponse = {
   };
 };
 
+export type ReportRequest = {
+  period: '7d' | '30d' | '90d' | 'custom';
+  start_date?: string;
+  end_date?: string;
+};
+
+export type ReportEvidence = AskEvidence;
+
+export type CareReport = {
+  care_profile: { id: string; name: string; subject_display_name: string };
+  period: { start_date: string; end_date: string; timezone: string; description: string };
+  generated_at: string;
+  wellbeing: {
+    average: number | null;
+    minimum: number | null;
+    maximum: number | null;
+    checkin_count: number;
+    daily_averages: WellbeingSummary['daily_averages'];
+    trend: 'higher' | 'lower' | 'stable' | 'insufficient_data';
+    trend_statement: string;
+    evidence: ReportEvidence[];
+  };
+  symptoms: Array<{
+    kind: SymptomKind;
+    label: string;
+    recorded_count: number;
+    evidence: ReportEvidence[];
+  }>;
+  falls: { count: number; items: ReportEvent[]; evidence: ReportEvidence[] };
+  medications: {
+    taken: number;
+    missed: number;
+    skipped: number;
+    not_recorded: number;
+    expected_scheduled_doses: number;
+    doses: Array<{
+      medication_name: string;
+      scheduled_local_date: string;
+      scheduled_local_time: string;
+      status: 'taken' | 'missed' | 'skipped' | 'not_recorded';
+      evidence: ReportEvidence[];
+    }>;
+    evidence: ReportEvidence[];
+  };
+  care_events: {
+    total_count: number;
+    activity_count: number;
+    sleep_count: number;
+    general_observation_count: number;
+    items: ReportEvent[];
+  };
+  appointments: Array<{
+    occurred_at: string;
+    summary: string;
+    provider: string | null;
+    location: string | null;
+    evidence: ReportEvidence[];
+  }>;
+  narrative_summary: string;
+  narrative_source: 'ai' | 'deterministic';
+  points_to_discuss: string[];
+  evidence: ReportEvidence[];
+  disclaimer: string;
+};
+
+export type ReportEvent = {
+  event_type: CareEventType;
+  occurred_at: string;
+  summary: string;
+  entered_by: string;
+  source_chat_confirmed: boolean;
+  evidence: ReportEvidence[];
+};
+
 export const symptomKinds = [
   'dizziness',
   'fatigue',
@@ -428,6 +502,12 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ question }) },
       token,
     ),
+  reportPreview: (token: string, profileId: string, payload: ReportRequest) =>
+    request<CareReport>(
+      `/care-profiles/${profileId}/reports/preview`,
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    ),
   medications: (token: string, profileId: string) =>
     request<Medication[]>(`/care-profiles/${profileId}/medications`, {}, token),
   medication: (token: string, profileId: string, medicationId: string) =>
@@ -535,3 +615,20 @@ export const api = {
     token,
   ),
 };
+
+export async function reportPdf(
+  token: string,
+  profileId: string,
+  payload: ReportRequest,
+): Promise<ArrayBuffer> {
+  const response = await fetch(`${API_URL}/care-profiles/${profileId}/reports/pdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.detail ?? 'Unable to export the care report.');
+  }
+  return response.arrayBuffer();
+}

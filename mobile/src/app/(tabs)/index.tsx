@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -124,11 +124,14 @@ export default function OverviewScreen() {
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
 
         {activeProfile ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push('/medications')} style={styles.medicationLink}>
-            <View style={styles.medicationIcon}><Ionicons name="medical-outline" size={23} color={colors.primary} /></View>
-            <View style={styles.medicationCopy}><Text style={styles.medicationTitle}>Medications</Text><Text style={styles.medicationBody}>Today's expected doses and medication plans</Text></View>
-            <Ionicons name="chevron-forward" size={21} color={colors.muted} />
-          </Pressable>
+          <>
+            <AppointmentReportLink />
+            <Pressable accessibilityRole="button" onPress={() => router.push('/medications')} style={styles.medicationLink}>
+              <View style={styles.medicationIcon}><Ionicons name="medical-outline" size={23} color={colors.primary} /></View>
+              <View style={styles.medicationCopy}><Text style={styles.medicationTitle}>Medications</Text><Text style={styles.medicationBody}>Today's expected doses and medication plans</Text></View>
+              <Ionicons name="chevron-forward" size={21} color={colors.muted} />
+            </Pressable>
+          </>
         ) : null}
 
         {!profilesLoading && profiles.length === 0 ? (
@@ -226,6 +229,15 @@ export default function OverviewScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export function AppointmentReportLink() {
+  const router = useRouter();
+  return <Pressable accessibilityRole="button" onPress={() => router.push('/care-report' as Href)} style={styles.medicationLink}>
+    <View style={styles.medicationIcon}><Ionicons name="document-text-outline" size={23} color={colors.primary} /></View>
+    <View style={styles.medicationCopy}><Text style={styles.medicationTitle}>Prepare for appointment</Text><Text style={styles.medicationBody}>Create an evidence-backed care summary and PDF</Text></View>
+    <Ionicons name="chevron-forward" size={21} color={colors.muted} />
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({

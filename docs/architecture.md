@@ -52,3 +52,9 @@ Chat REST and WebSocket access query the same membership pair. WebSocket clients
 Wellbeing self reports, CareEvents, and chat are separate domain modules beneath the existing profile tenancy boundary. Self reports and CareEvents are merged only for timeline presentation. Chat becomes a CareEvent only through a reviewed, explicitly confirmed copy with provenance. Realtime delivery is an optimization over durable REST recovery. Alembic is the only supported production schema-change mechanism.
 
 Ask CareRelay can read only confirmed self reports and CareEvents through profile-scoped deterministic tools. It cannot query raw chat or execute arbitrary SQL. Numeric results and visualization data are calculated before provider invocation, and record references remain attached to the response.
+
+Care reports use one profile-scoped deterministic builder for both structured preview and PDF
+export. The builder reads self reports, normalized symptoms, confirmed CareEvents, appointments,
+and authoritative medication occurrences within CareProfile timezone boundaries. Raw chat remains
+excluded. An optional AI provider may rewrite only the verified narrative; provider failure or an
+unknown number falls back to the deterministic narrative without blocking the report.

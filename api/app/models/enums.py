@@ -60,6 +60,8 @@ class AuditAction(StrEnum):
     MEDICATION_SCHEDULE_REMOVED = "medication_schedule_removed"
     MEDICATION_DOSE_RECORDED = "medication_dose_recorded"
     MEDICATION_DOSE_CORRECTED = "medication_dose_corrected"
+    REPORT_PREVIEW_GENERATED = "report_preview_generated"
+    REPORT_PDF_GENERATED = "report_pdf_generated"
 
 
 class MedicationScheduleType(StrEnum):

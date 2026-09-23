@@ -1,6 +1,6 @@
 # CareRelay
 
-CareRelay is a mobile-first family care coordination application. The current Phase 6 build provides canonical profile subjects, membership-scoped care profiles, self-reported wellbeing, structured care observations, private family chat, evidence-backed Ask CareRelay answers, and timezone-safe medication plans with explicit dose tracking.
+CareRelay is a mobile-first family care coordination application. The current Phase 7 build provides canonical profile subjects, membership-scoped care profiles, self-reported wellbeing, structured care observations, private family chat, evidence-backed Ask CareRelay answers, timezone-safe medication plans with explicit dose tracking, and evidence-backed appointment reports with private PDF sharing.
 
 ## Quick start
 
@@ -38,4 +38,4 @@ cd mobile && npm test -- --runInBand
 cd mobile && npm run typecheck
 ```
 
-See [architecture](docs/architecture.md), [data model](docs/data-model.md), the [Phase 5 handoff](docs/phase-5.md), and the [Phase 6 handoff](docs/phase-6.md).
+See [architecture](docs/architecture.md), [data model](docs/data-model.md), the [Phase 6 handoff](docs/phase-6.md), and the [Phase 7 handoff](docs/phase-7.md).
