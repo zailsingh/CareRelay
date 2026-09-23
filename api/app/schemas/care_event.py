@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from typing import Any
 from uuid import UUID
@@ -9,6 +9,7 @@ from app.models.enums import (
     CareEventSource,
     CareEventType,
     ConfirmationStatus,
+    MedicationDoseStatus,
     SymptomKind,
 )
 
@@ -36,6 +37,11 @@ class SymptomObservationMetadata(MetadataBase):
 class MedicationMetadata(MetadataBase):
     medication_name: str | None = Field(default=None, max_length=200)
     dose: str | None = Field(default=None, max_length=100)
+    medication_id: UUID | None = None
+    medication_dose_id: UUID | None = None
+    scheduled_local_date: date | None = None
+    scheduled_local_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    dose_status: MedicationDoseStatus | None = None
 
 
 class FallMetadata(MetadataBase):
@@ -67,6 +73,7 @@ METADATA_MODELS: dict[CareEventType, type[MetadataBase]] = {
     CareEventType.SYMPTOM_OBSERVATION: SymptomObservationMetadata,
     CareEventType.MEDICATION_TAKEN: MedicationMetadata,
     CareEventType.MEDICATION_MISSED: MedicationMetadata,
+    CareEventType.MEDICATION_SKIPPED: MedicationMetadata,
     CareEventType.FALL: FallMetadata,
     CareEventType.ACTIVITY: ActivityMetadata,
     CareEventType.SLEEP_OBSERVATION: SleepObservationMetadata,

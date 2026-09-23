@@ -12,6 +12,7 @@ import {
   WellbeingCheckin,
 } from '@/lib/api';
 import { formatCheckinTime } from '@/lib/dates';
+import { formatMedicationClock } from '@/lib/medications';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCareProfiles } from '@/providers/CareProfileProvider';
 import { colors } from '@/theme/colors';
@@ -105,11 +106,16 @@ function SelfReportCard({ checkin }: { checkin: WellbeingCheckin }) {
 }
 
 function CareEventCard({ event }: { event: CareEvent }) {
+  const medicationEvent = event.event_type.startsWith('medication_');
+  const scheduledTime = typeof event.metadata.scheduled_local_time === 'string'
+    ? event.metadata.scheduled_local_time
+    : null;
   return (
     <View style={[styles.card, styles.eventCard]}>
       <CardHeader label={careEventLabels[event.event_type]} timestamp={event.occurred_at} tone="event" />
       <Text style={styles.summary}>{event.summary}</Text>
-      <Text style={styles.reporter}>{event.entered_by.display_name} · {event.source}</Text>
+      {medicationEvent && scheduledTime ? <Text style={styles.detail}>Scheduled {formatMedicationClock(scheduledTime)}</Text> : null}
+      <Text style={styles.reporter}>{medicationEvent ? 'Recorded by ' : ''}{event.entered_by.display_name} · {event.source}</Text>
     </View>
   );
 }
@@ -154,4 +160,3 @@ const styles = StyleSheet.create({
   summary: { color: colors.ink, fontSize: 16, lineHeight: 23, marginTop: 14 },
   reporter: { color: colors.muted, fontSize: 12, textTransform: 'capitalize', marginTop: 14 },
 });
-

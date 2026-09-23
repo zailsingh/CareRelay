@@ -25,12 +25,67 @@ SAFETY_NOTE = (
 )
 
 
+def _asks_for_medical_advice(question: str) -> bool:
+    """Keep clinical interpretation and treatment decisions outside the AI provider."""
+    lowered = question.lower()
+    direct_terms = (
+        "diagnos",
+        "prescrib",
+        "treatment",
+        "clinical significance",
+        "medical significance",
+        "is it serious",
+        "is this serious",
+        "is it dangerous",
+        "is this dangerous",
+        "what caused",
+        "what causes",
+        "what do i do",
+        "what should i do",
+        "make up",
+        "catch-up",
+        "catch up",
+        "double dose",
+        "take two",
+    )
+    if any(term in lowered for term in direct_terms):
+        return True
+
+    subject = r"(?:i|we|mum|mom|dad|she|he|they)"
+    if re.search(rf"\bshould\s+{subject}\b", lowered):
+        return True
+    if re.search(
+        rf"\b(?:can|could)\s+{subject}\b.*\b(?:take|stop|start|change|adjust|increase|decrease)\b",
+        lowered,
+    ):
+        return True
+    return bool(
+        re.search(
+            r"\b(?:stop|start|change|adjust|increase|decrease)\b.*"
+            r"\b(?:medication|medicine|dose|dosage)\b",
+            lowered,
+        )
+    )
+
+
 def _period(question: str, timezone_name: str) -> tuple[date, date, str]:
     today = datetime.now(ZoneInfo(timezone_name)).date()
     lowered = question.lower()
+    if "yesterday" in lowered:
+        yesterday = today - timedelta(days=1)
+        return yesterday, yesterday, "Yesterday"
+    if "today" in lowered:
+        return today, today, "Today"
+    if any(term in lowered for term in ("this morning", "morning medication", "morning dose")):
+        return today, today, "Today"
+    if "tonight" in lowered or "evening medication" in lowered or "evening dose" in lowered:
+        return today, today, "Today"
     if "since monday" in lowered:
         start = today - timedelta(days=today.weekday())
         return start, today, "Since Monday"
+    if "this week" in lowered and "last week" not in lowered:
+        start = today - timedelta(days=today.weekday())
+        return start, today, "This week"
     days = (
         30
         if any(term in lowered for term in ("30 day", "recent", "symptom", "dizz", "fall"))
@@ -47,7 +102,12 @@ def _deduplicate_evidence(results: list[ToolResult]) -> list[EvidenceReference]:
     return sorted(evidence.values(), key=lambda item: item.occurred_at, reverse=True)
 
 
-def _fallback_answer(results: list[ToolResult], period: str, medical: bool) -> str:
+def _fallback_answer(
+    results: list[ToolResult],
+    period: str,
+    medical: bool,
+    question: str,
+) -> str:
     by_name = {result.name: result for result in results}
     answer: str
     if "compare_wellbeing_periods" in by_name:
@@ -84,6 +144,36 @@ def _fallback_answer(results: list[ToolResult], period: str, medical: bool) -> s
         count = sum(frequencies.values())
         verb = "events were" if count != 1 else "event was"
         answer = f"{count} matching confirmed care {verb} recorded during {period.lower()}."
+    elif "get_medication_summary" in by_name:
+        data = by_name["get_medication_summary"].metrics
+        dose_rows = data["dose_statuses"]
+        lowered = question.lower()
+        if "morning" in lowered:
+            dose_rows = [row for row in dose_rows if int(row["scheduled_local_time"][:2]) < 12]
+        elif "evening" in lowered or "tonight" in lowered:
+            dose_rows = [row for row in dose_rows if int(row["scheduled_local_time"][:2]) >= 17]
+        if len(dose_rows) == 1:
+            row = dose_rows[0]
+            clock = row["scheduled_local_time"]
+            if row["status"] == "not_recorded":
+                answer = (
+                    f"There is no dose record for {row['medication_name']} scheduled at "
+                    f"{clock} on {row['scheduled_local_date']}."
+                )
+            else:
+                answer = (
+                    f"{row['medication_name']} scheduled at {clock} on "
+                    f"{row['scheduled_local_date']} was recorded as {row['status']}"
+                    + (f" by {row['recorded_by']}." if row["recorded_by"] else ".")
+                )
+        elif not dose_rows and not data["legacy_medication_event_count"]:
+            answer = f"There are no scheduled or recorded medication doses for {period.lower()}."
+        else:
+            answer = (
+                f"Medication records for {period.lower()}: {data['taken']} taken, "
+                f"{data['missed']} missed, and {data['skipped']} skipped. "
+                f"{data['not_recorded']} expected doses have no recorded outcome."
+            )
     elif "get_recent_changes" in by_name:
         data = by_name["get_recent_changes"].metrics
         if data["checkin_count"] == 0 and data["event_count"] == 0:
@@ -122,10 +212,18 @@ def _fallback_answer(results: list[ToolResult], period: str, medical: bool) -> s
         else:
             answer = f"There is not enough recorded information to answer for {period.lower()}."
     if medical:
-        answer += (
-            " I cannot diagnose or recommend treatment; consider discussing these recorded "
-            "facts with a qualified clinician."
-        )
+        if "get_medication_summary" in by_name:
+            answer += (
+                " I cannot diagnose or recommend treatment. I cannot advise starting, "
+                "stopping, changing, or making up a dose. "
+                "Please ask a qualified clinician or pharmacist, or follow the medication's "
+                "approved instructions."
+            )
+        else:
+            answer += (
+                " I cannot diagnose or recommend treatment; consider discussing these recorded "
+                "facts with a qualified clinician."
+            )
     return answer
 
 
@@ -170,7 +268,7 @@ async def answer_question(
         results = [tools.get_event_frequency(start, end, CareEventType.FALL)]
     elif "activity" in lowered or "walk" in lowered:
         results = [tools.get_activity_summary(start, end)]
-    elif "medication" in lowered:
+    elif any(term in lowered for term in ("medication", "medicine", "dose", "tablet")):
         results = [tools.get_medication_event_summary(start, end)]
     elif "changed" in lowered or "change" in lowered:
         results = [tools.get_recent_changes(start, end)]
@@ -185,12 +283,13 @@ async def answer_question(
         timezone=timezone_name,
         description=description,
     )
-    medical = any(
-        term in lowered for term in ("diagnos", "treatment", "should i take", "medication change")
-    )
-    deterministic = _fallback_answer(results, description, medical)
+    medical = _asks_for_medical_advice(question)
+    deterministic = _fallback_answer(results, description, medical, question)
     insufficient = not evidence
-    if insufficient:
+    medication_question = any(result.name == "get_medication_summary" for result in results)
+    if insufficient or medical or medication_question:
+        # Medical-advice prompts never reach a generative provider. The user still receives
+        # useful, deterministic record context plus the clinical boundary from the fallback.
         answer = deterministic
     else:
         try:

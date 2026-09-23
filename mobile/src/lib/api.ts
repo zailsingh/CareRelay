@@ -40,11 +40,12 @@ export const careEventTypes = [
   'appointment',
   'medication_taken',
   'medication_missed',
+  'medication_skipped',
   'general_note',
 ] as const;
 
 export type CareEventType = (typeof careEventTypes)[number];
-export type CareEventSource = 'admin' | 'family' | 'carer';
+export type CareEventSource = 'admin' | 'family' | 'carer' | 'subject';
 
 export const careEventLabels: Record<CareEventType, string> = {
   family_observation: 'Observation',
@@ -55,6 +56,7 @@ export const careEventLabels: Record<CareEventType, string> = {
   appointment: 'Appointment',
   medication_taken: 'Medication taken',
   medication_missed: 'Medication missed',
+  medication_skipped: 'Medication skipped',
   general_note: 'Note',
 };
 
@@ -106,10 +108,72 @@ export type ChatCareEventDraft = {
 };
 
 export type AskEvidence = {
-  record_type: 'wellbeing_checkin' | 'care_event';
+  record_type: 'wellbeing_checkin' | 'care_event' | 'medication' | 'medication_dose';
   record_id: string;
   occurred_at: string;
   label: string;
+};
+
+export type MedicationSchedule = {
+  id: string;
+  medication_id: string;
+  local_time: string;
+  days_of_week: number[];
+  active: boolean;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Medication = {
+  id: string;
+  care_profile_id: string;
+  name: string;
+  strength_text: string | null;
+  form: string | null;
+  instructions_text: string | null;
+  notes: string | null;
+  schedule_type: 'scheduled' | 'as_needed';
+  active: boolean;
+  start_date: string | null;
+  end_date: string | null;
+  created_by_user_id: string;
+  schedules: MedicationSchedule[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type MedicationDose = {
+  id: string;
+  medication_id: string;
+  medication_name: string;
+  medication_strength: string | null;
+  schedule_id: string | null;
+  scheduled_for: string;
+  scheduled_local_date: string;
+  scheduled_local_time: string;
+  scheduled_timezone: string;
+  status: 'taken' | 'missed' | 'skipped';
+  recorded_by: { id: string; display_name: string };
+  recorded_at: string;
+  note: string | null;
+  care_event_id: string;
+};
+
+export type MedicationDoseOccurrence = {
+  occurrence_key: string;
+  medication_id: string;
+  medication_name: string;
+  medication_strength: string | null;
+  schedule_id: string | null;
+  scheduled_for: string;
+  scheduled_local_date: string;
+  scheduled_local_time: string;
+  scheduled_timezone: string;
+  status: 'taken' | 'missed' | 'skipped' | 'not_recorded';
+  dose_record: MedicationDose | null;
+  due_state: 'recorded' | 'elapsed' | 'upcoming' | 'as_needed';
 };
 
 export type AskResponse = {
@@ -364,4 +428,110 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ question }) },
       token,
     ),
+  medications: (token: string, profileId: string) =>
+    request<Medication[]>(`/care-profiles/${profileId}/medications`, {}, token),
+  medication: (token: string, profileId: string, medicationId: string) =>
+    request<Medication>(
+      `/care-profiles/${profileId}/medications/${medicationId}`,
+      {},
+      token,
+    ),
+  createMedication: (
+    token: string,
+    profileId: string,
+    payload: {
+      name: string;
+      strength_text?: string | null;
+      form?: string | null;
+      instructions_text?: string | null;
+      notes?: string | null;
+      schedule_type: 'scheduled' | 'as_needed';
+      schedules?: Array<{ local_time: string; days_of_week: number[] }>;
+    },
+  ) => request<Medication>(
+    `/care-profiles/${profileId}/medications`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+  ),
+  updateMedication: (
+    token: string,
+    profileId: string,
+    medicationId: string,
+    payload: Partial<Pick<Medication, 'name' | 'strength_text' | 'form' | 'instructions_text' | 'notes' | 'schedule_type' | 'active' | 'start_date' | 'end_date'>>,
+  ) => request<Medication>(
+    `/care-profiles/${profileId}/medications/${medicationId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+  ),
+  deactivateMedication: (token: string, profileId: string, medicationId: string) =>
+    request<void>(
+      `/care-profiles/${profileId}/medications/${medicationId}`,
+      { method: 'DELETE' },
+      token,
+    ),
+  createMedicationSchedule: (
+    token: string,
+    profileId: string,
+    medicationId: string,
+    payload: { local_time: string; days_of_week: number[] },
+  ) => request<MedicationSchedule>(
+    `/care-profiles/${profileId}/medications/${medicationId}/schedules`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+  ),
+  updateMedicationSchedule: (
+    token: string,
+    profileId: string,
+    medicationId: string,
+    scheduleId: string,
+    payload: Partial<Pick<MedicationSchedule, 'local_time' | 'days_of_week' | 'active' | 'start_date' | 'end_date'>>,
+  ) => request<MedicationSchedule>(
+    `/care-profiles/${profileId}/medications/${medicationId}/schedules/${scheduleId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+  ),
+  removeMedicationSchedule: (
+    token: string,
+    profileId: string,
+    medicationId: string,
+    scheduleId: string,
+  ) => request<void>(
+    `/care-profiles/${profileId}/medications/${medicationId}/schedules/${scheduleId}`,
+    { method: 'DELETE' },
+    token,
+  ),
+  medicationDoses: (
+    token: string,
+    profileId: string,
+    start: string,
+    end: string,
+  ) => {
+    const query = new URLSearchParams({ start, end });
+    return request<MedicationDoseOccurrence[]>(
+      `/care-profiles/${profileId}/medication-doses?${query.toString()}`,
+      {},
+      token,
+    );
+  },
+  medicationDose: (token: string, profileId: string, doseId: string) =>
+    request<MedicationDose>(
+      `/care-profiles/${profileId}/medication-doses/${doseId}`,
+      {},
+      token,
+    ),
+  recordMedicationDose: (
+    token: string,
+    profileId: string,
+    payload: {
+      medication_id: string;
+      schedule_id?: string | null;
+      scheduled_for?: string | null;
+      status: 'taken' | 'missed' | 'skipped';
+      note?: string | null;
+    },
+  ) => request<MedicationDose>(
+    `/care-profiles/${profileId}/medication-doses`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+  ),
 };

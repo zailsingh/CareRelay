@@ -53,7 +53,9 @@ Symptoms are normalized child rows with a closed enum kind and a unique `(checki
 
 Care Events are family/carer observations stored separately from wellbeing self reports. They include a validated event type, occurrence, authenticated author, server-derived source, factual summary, strict type-specific metadata, confirmation status, and audit timestamps.
 
-Medication taken/missed values are event types only; there is no medication schedule domain.
+Medication event types created before Phase 6 remain valid historical observations. Phase 6
+adds a structured medication domain; recorded dose outcomes create linked, confirmed CareEvent
+projections so the existing timeline remains compatible.
 
 ## Phase 3: AuditLog
 
@@ -78,3 +80,28 @@ Attachment metadata reserves a private opaque storage key, filename, media type,
 ## Phase 5: AskAudit
 
 Minimal AI audit metadata records the profile, actor, SHA-256 question hash, provider/model, tool names, evidence count, success/failure status, optional error code, and timestamp. Raw questions, model prompts, answers, credentials, and chain-of-thought are deliberately not persisted.
+
+## Phase 6: Medication
+
+Medication plans belong to one CareProfile and store a factual name, optional strength, form,
+instructions and notes, scheduled or as-needed classification, active state, optional plan date
+bounds, creator, and audit timestamps. Deactivation preserves medication history.
+
+## Phase 6: MedicationSchedule and MedicationScheduleDay
+
+A scheduled medication has one or more local wall-clock schedules. Each schedule stores its local
+time, active state, optional date bounds, and a normalized set of weekdays. Expected occurrences
+are derived for requested date ranges in the CareProfile's IANA timezone; future rows are not
+pre-generated.
+
+## Phase 6: MedicationDoseRecord
+
+A dose record stores an explicit human-entered `taken`, `missed`, or `skipped` outcome. It snapshots
+the scheduled UTC instant, local date, local time and timezone, records the actor and entry time,
+and links to exactly one confirmed CareEvent projection. The pair `(schedule_id, scheduled_for)` is
+unique for scheduled doses. `not_recorded` is a derived API state and is never persisted as an
+outcome.
+
+Medication plan, schedule and dose mutations append AuditLog entries. Corrections use the dose API
+and update the linked CareEvent transactionally; the generic CareEvent API rejects direct mutation
+of medication-managed projections.

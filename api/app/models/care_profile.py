@@ -27,3 +27,6 @@ class CareProfile(Base):
         back_populates="care_profile", cascade="all, delete-orphan"
     )
     subject_user: Mapped["User | None"] = relationship(foreign_keys=[subject_user_id])  # noqa: F821
+    medications: Mapped[list["Medication"]] = relationship(  # noqa: F821
+        cascade="all, delete-orphan"
+    )

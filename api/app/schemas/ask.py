@@ -12,7 +12,7 @@ class AskRequest(BaseModel):
 
 
 class EvidenceReference(BaseModel):
-    record_type: Literal["wellbeing_checkin", "care_event"]
+    record_type: Literal["wellbeing_checkin", "care_event", "medication", "medication_dose"]
     record_id: UUID
     occurred_at: datetime
     label: str

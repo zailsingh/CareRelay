@@ -18,7 +18,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { colors } from '@/theme/colors';
 
 export default function SignInScreen() {
-  const { token, loading, signIn } = useAuth();
+  const { token, loading, initializationError, retryInitialization, signIn } = useAuth();
   const [email, setEmail] = useState('alex@example.com');
   const [displayName, setDisplayName] = useState('Alex');
   const [submitting, setSubmitting] = useState(false);
@@ -71,6 +71,14 @@ export default function SignInScreen() {
             onChangeText={setEmail}
             style={styles.input}
           />
+          {initializationError ? (
+            <View>
+              <Text accessibilityRole="alert" style={styles.error}>{initializationError}</Text>
+              <Pressable accessibilityRole="button" onPress={retryInitialization}>
+                <Text style={styles.retry}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Pressable
             accessibilityRole="button"
@@ -102,6 +110,7 @@ const styles = StyleSheet.create({
   label: { color: colors.ink, fontSize: 14, fontWeight: '700', marginBottom: 8 },
   input: { minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: 16, fontSize: 16, marginBottom: 18 },
   error: { color: colors.error, fontSize: 14, marginBottom: 12 },
+  retry: { color: colors.primary, fontSize: 14, fontWeight: '700', marginBottom: 12 },
   button: { minHeight: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
   buttonPressed: { backgroundColor: colors.primaryPressed },
   disabled: { opacity: 0.65 },

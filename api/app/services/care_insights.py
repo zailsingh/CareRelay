@@ -12,6 +12,7 @@ from app.models.care_event import CareEvent
 from app.models.enums import CareEventType, ConfirmationStatus, SymptomKind
 from app.models.wellbeing import WellbeingCheckin
 from app.schemas.ask import EvidenceReference
+from app.services.medications import expected_doses, medication_status_counts
 from app.services.wellbeing_summary import as_utc, calculate_wellbeing_summary
 
 
@@ -214,18 +215,114 @@ class CareDataTools:
         )
 
     def get_medication_event_summary(self, start_date: date, end_date: date) -> ToolResult:
-        self._count("get_medication_event_summary")
+        """Summarize authoritative doses plus unlinked legacy medication events."""
+        self._count("get_medication_summary")
+        occurrences = expected_doses(
+            self.db,
+            self.care_profile_id,
+            self.timezone_name,
+            start_date,
+            end_date,
+        )
+        linked_event_ids = {
+            item.record.care_event_id for item in occurrences if item.record is not None
+        }
+        legacy_events = [
+            event
+            for event in self._events(
+                start_date,
+                end_date,
+                {
+                    CareEventType.MEDICATION_TAKEN,
+                    CareEventType.MEDICATION_MISSED,
+                    CareEventType.MEDICATION_SKIPPED,
+                },
+            )
+            if event.id not in linked_event_ids
+        ]
+        statuses = medication_status_counts(occurrences)
+        legacy_counts = Counter(event.event_type for event in legacy_events)
+        statuses["taken"] += legacy_counts[CareEventType.MEDICATION_TAKEN]
+        statuses["missed"] += legacy_counts[CareEventType.MEDICATION_MISSED]
+        statuses["skipped"] += legacy_counts[CareEventType.MEDICATION_SKIPPED]
+        dose_evidence = [
+            EvidenceReference(
+                record_type="medication_dose",
+                record_id=item.record.id,
+                occurred_at=as_utc(item.record.recorded_at),
+                label=(
+                    f"{item.medication.name}: {item.record.status.value.replace('_', ' ')} "
+                    f"for {item.scheduled_local_date.isoformat()} "
+                    f"{item.scheduled_local_time.isoformat(timespec='minutes')}"
+                ),
+            )
+            for item in occurrences
+            if item.record is not None
+        ]
+        medication_evidence: dict[UUID, EvidenceReference] = {}
+        for item in occurrences:
+            if item.record is None:
+                medication_evidence[item.medication.id] = EvidenceReference(
+                    record_type="medication",
+                    record_id=item.medication.id,
+                    occurred_at=item.scheduled_for,
+                    label=f"{item.medication.name}: scheduled dose with no recorded outcome",
+                )
+        rows = [
+            {
+                "medication_id": str(item.medication.id),
+                "medication_name": item.medication.name,
+                "strength_text": item.medication.strength_text,
+                "schedule_id": str(item.schedule.id) if item.schedule else None,
+                "scheduled_local_date": item.scheduled_local_date.isoformat(),
+                "scheduled_local_time": item.scheduled_local_time.isoformat(timespec="minutes"),
+                "status": item.record.status.value if item.record else "not_recorded",
+                "recorded_by": (
+                    item.record.recorded_by.display_name if item.record is not None else None
+                ),
+                "recorded_at": (
+                    as_utc(item.record.recorded_at).isoformat() if item.record is not None else None
+                ),
+            }
+            for item in occurrences
+        ]
+        return ToolResult(
+            "get_medication_summary",
+            {
+                "taken": statuses["taken"],
+                "missed": statuses["missed"],
+                "skipped": statuses["skipped"],
+                "not_recorded": statuses["not_recorded"],
+                "expected_dose_count": len(
+                    [item for item in occurrences if item.schedule is not None]
+                ),
+                "dose_statuses": rows,
+                "legacy_medication_event_count": len(legacy_events),
+            },
+            dose_evidence
+            + list(medication_evidence.values())
+            + self._event_evidence(legacy_events),
+        )
+
+    def get_legacy_medication_event_summary(self, start_date: date, end_date: date) -> ToolResult:
+        """Compatibility helper retained for callers that need CareEvent-only history."""
+        self._count("get_legacy_medication_event_summary")
         events = self._events(
             start_date,
             end_date,
-            {CareEventType.MEDICATION_TAKEN, CareEventType.MEDICATION_MISSED},
+            {
+                CareEventType.MEDICATION_TAKEN,
+                CareEventType.MEDICATION_MISSED,
+                CareEventType.MEDICATION_SKIPPED,
+            },
         )
         counts = Counter(event.event_type.value for event in events)
         return ToolResult(
-            "get_medication_event_summary",
+            "get_legacy_medication_event_summary",
             {
                 "medication_taken": counts[CareEventType.MEDICATION_TAKEN.value],
                 "medication_missed": counts[CareEventType.MEDICATION_MISSED.value],
+                "medication_skipped": counts[CareEventType.MEDICATION_SKIPPED.value],
             },
             self._event_evidence(events),
         )

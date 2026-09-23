@@ -16,6 +16,7 @@ from app.models.enums import (
     CareRole,
     ConfirmationStatus,
 )
+from app.models.medication import MedicationDoseRecord
 from app.schemas.care_event import (
     CareEventCreate,
     CareEventRead,
@@ -106,6 +107,16 @@ def require_event_editor(event: CareEvent, access: ProfileMemberAccess) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the event author or a profile administrator can change this event",
+        )
+
+
+def reject_managed_medication_event(db: DbSession, event_id: UUID) -> None:
+    if db.scalar(
+        select(MedicationDoseRecord.id).where(MedicationDoseRecord.care_event_id == event_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This event is managed by its medication dose record",
         )
 
 
@@ -229,6 +240,7 @@ def update_care_event(
 ) -> CareEventRead:
     event = get_event_or_404(db, access.profile.id, event_id)
     require_event_editor(event, access)
+    reject_managed_medication_event(db, event.id)
     before = event_snapshot(event)
     fields = payload.model_fields_set
     final_type = payload.event_type or event.event_type
@@ -268,6 +280,7 @@ def delete_care_event(
 ) -> Response:
     event = get_event_or_404(db, access.profile.id, event_id)
     require_event_editor(event, access)
+    reject_managed_medication_event(db, event.id)
     before = event_snapshot(event)
     add_audit_entry(
         db,
