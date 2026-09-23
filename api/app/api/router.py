@@ -6,6 +6,7 @@ from app.api.routes import (
     care_events,
     care_profiles,
     chat,
+    invitations,
     medications,
     reports,
     wellbeing,
@@ -20,3 +21,4 @@ api_router.include_router(chat.router, prefix="/care-profiles", tags=["chat"])
 api_router.include_router(ask.router, prefix="/care-profiles", tags=["ask care relay"])
 api_router.include_router(medications.router, prefix="/care-profiles", tags=["medications"])
 api_router.include_router(reports.router, prefix="/care-profiles", tags=["care reports"])
+api_router.include_router(invitations.router, tags=["care invitations"])

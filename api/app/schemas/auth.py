@@ -12,6 +12,7 @@ class DevLoginRequest(BaseModel):
 
 class AppleLoginRequest(BaseModel):
     identity_token: str = Field(min_length=1)
+    nonce: str = Field(default="", max_length=200)
     display_name: str | None = Field(default=None, max_length=120)
 
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -23,3 +24,7 @@ class TokenResponse(BaseModel):
     user: UserRead
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AppleNotificationRequest(BaseModel):
+    payload: str = Field(min_length=1)

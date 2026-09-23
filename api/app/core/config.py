@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     ai_model: str = "mock-care-relay-v1"
     ai_max_tool_calls: int = 4
+    apple_client_id: str = ""
+    apple_jwks_url: str = "https://appleid.apple.com/auth/keys"
+    email_provider: str = "mock"
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    email_from: str = ""
+    invite_base_url: str = "carerelay://invite"
+    invite_expire_hours: int = 168
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:8081",
         "http://localhost:19006",
@@ -47,6 +58,33 @@ class Settings(BaseSettings):
             raise ValueError("AI_MODEL must be an explicit OpenRouter model ID")
         if not 1 <= self.ai_max_tool_calls <= 10:
             raise ValueError("AI_MAX_TOOL_CALLS must be between 1 and 10")
+        if self.email_provider not in {"mock", "gmail"}:
+            raise ValueError("EMAIL_PROVIDER must be mock or gmail")
+        if self.email_provider == "gmail":
+            missing = [
+                name
+                for name, value in (
+                    ("SMTP_USERNAME", self.smtp_username),
+                    ("SMTP_PASSWORD", self.smtp_password),
+                    ("EMAIL_FROM", self.email_from),
+                    ("SMTP_HOST", self.smtp_host),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(f"Gmail email provider requires {', '.join(missing)}")
+            if not self.smtp_use_tls:
+                raise ValueError("Gmail email provider requires SMTP_USE_TLS=true")
+            if not 1 <= self.smtp_port <= 65535:
+                raise ValueError("SMTP_PORT must be between 1 and 65535")
+        if not self.invite_base_url.strip():
+            raise ValueError("INVITE_BASE_URL must not be empty")
+        if not 1 <= self.invite_expire_hours <= 24 * 30:
+            raise ValueError("INVITE_EXPIRE_HOURS must be between 1 and 720")
+        if self.app_env.lower() == "production" and not self.apple_client_id:
+            raise ValueError("APPLE_CLIENT_ID is required in production")
+        if self.app_env.lower() == "production" and not self.apple_jwks_url:
+            raise ValueError("APPLE_JWKS_URL is required in production")
         return self
 
     @property

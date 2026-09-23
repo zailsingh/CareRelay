@@ -47,6 +47,8 @@ class ConfirmationStatus(StrEnum):
 
 
 class AuditAction(StrEnum):
+    CARE_PROFILE_CREATED = "care_profile_created"
+    INITIAL_ADMIN_CREATED = "initial_admin_created"
     SUBJECT_CHANGED = "subject_changed"
     TIMEZONE_CHANGED = "timezone_changed"
     CARE_EVENT_CREATED = "care_event_created"
@@ -62,6 +64,17 @@ class AuditAction(StrEnum):
     MEDICATION_DOSE_CORRECTED = "medication_dose_corrected"
     REPORT_PREVIEW_GENERATED = "report_preview_generated"
     REPORT_PDF_GENERATED = "report_pdf_generated"
+    INVITATION_CREATED = "invitation_created"
+    INVITATION_EMAIL_SENT = "invitation_email_sent"
+    INVITATION_EMAIL_DELIVERY_FAILED = "invitation_email_delivery_failed"
+    INVITATION_RESENT = "invitation_resent"
+    INVITATION_REVOKED = "invitation_revoked"
+    INVITATION_ACCEPTED = "invitation_accepted"
+    MEMBERSHIP_CREATED = "membership_created"
+    MEMBERSHIP_ROLE_CHANGED = "membership_role_changed"
+    MEMBERSHIP_REMOVED = "membership_removed"
+    SUBJECT_LINKED = "subject_linked"
+    ACCOUNT_DELETION_REQUESTED = "account_deletion_requested"
 
 
 class MedicationScheduleType(StrEnum):

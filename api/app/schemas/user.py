@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr
 
 class UserRead(BaseModel):
     id: UUID
-    email: EmailStr
+    email: EmailStr | None
     display_name: str
     created_at: datetime
 

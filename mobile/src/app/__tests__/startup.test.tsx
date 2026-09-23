@@ -5,6 +5,7 @@ import Index from '@/app/index';
 import RootLayout from '@/app/_layout';
 import SignInScreen from '@/app/sign-in';
 import { useAuth } from '@/providers/AuthProvider';
+import { useCareProfiles } from '@/providers/CareProfileProvider';
 
 const mockStack = jest.fn(() => <Text>router-stack</Text>);
 const mockRedirect = jest.fn(({ href }: { href: string }) => <Text>redirect:{href}</Text>);
@@ -12,6 +13,7 @@ const mockRedirect = jest.fn(({ href }: { href: string }) => <Text>redirect:{hre
 jest.mock('expo-router', () => ({
   Stack: () => mockStack(),
   Redirect: (props: { href: string }) => mockRedirect(props),
+  useLocalSearchParams: () => ({}),
   router: { replace: jest.fn() },
 }));
 
@@ -31,11 +33,25 @@ jest.mock('@/providers/AuthProvider', () => ({
 
 jest.mock('@/providers/CareProfileProvider', () => ({
   CareProfileProvider: ({ children }: { children: React.ReactNode }) => children,
+  useCareProfiles: jest.fn(),
 }));
 
 describe('app startup', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(useCareProfiles).mockReturnValue({
+      profiles: [],
+      activeProfile: null,
+      loading: false,
+      error: null,
+      wellbeingRevision: 0,
+      careEventRevision: 0,
+      setActiveProfileId: jest.fn(),
+      createProfile: jest.fn(),
+      refreshProfiles: jest.fn(),
+      notifyWellbeingChanged: jest.fn(),
+      notifyCareEventChanged: jest.fn(),
+    });
   });
 
   it('initializes the root layout and navigation stack', () => {
@@ -62,6 +78,36 @@ describe('app startup', () => {
     expect(screen.getByText('redirect:/sign-in')).toBeTruthy();
   });
 
+  it('sends a first-time authenticated user to onboarding', () => {
+    jest.mocked(useAuth).mockReturnValue({
+      loading: false,
+      token: 'access-token',
+    } as ReturnType<typeof useAuth>);
+    render(<Index />);
+    expect(screen.getByText('redirect:/onboarding')).toBeTruthy();
+  });
+
+  it('sends a returning member directly into the app', () => {
+    jest.mocked(useAuth).mockReturnValue({
+      loading: false,
+      token: 'access-token',
+    } as ReturnType<typeof useAuth>);
+    jest.mocked(useCareProfiles).mockReturnValue({
+      ...jest.mocked(useCareProfiles)(),
+      profiles: [{
+        id: 'profile-1',
+        name: 'Deepika',
+        role: 'admin',
+        subject_user_id: null,
+        timezone: 'Australia/Melbourne',
+        created_at: 'now',
+      }],
+      loading: false,
+    });
+    render(<Index />);
+    expect(screen.getByText('redirect:/(tabs)')).toBeTruthy();
+  });
+
   it('shows a recoverable auth initialization failure', () => {
     const retryInitialization = jest.fn();
     jest.mocked(useAuth).mockReturnValue({
@@ -71,7 +117,9 @@ describe('app startup', () => {
       initializationError: 'We could not restore your session. Check your connection and try again.',
       retryInitialization,
       signIn: jest.fn(),
+      signInWithApple: jest.fn(),
       signOut: jest.fn(),
+      deleteAccount: jest.fn(),
     });
 
     render(<SignInScreen />);
@@ -90,7 +138,9 @@ describe('app startup', () => {
       initializationError: null,
       retryInitialization: jest.fn(),
       signIn,
+      signInWithApple: jest.fn(),
       signOut: jest.fn(),
+      deleteAccount: jest.fn(),
     });
 
     render(<SignInScreen />);

@@ -26,7 +26,7 @@ npm run start
 
 For a physical device, set `EXPO_PUBLIC_API_URL` in `mobile/.env.local` to the computer's LAN address, for example `http://192.168.1.20:8000/api/v1`.
 
-The development sign-in accepts an email and display name. It is disabled whenever `APP_ENV=production`. Apple sign-in boundaries are present on the API and mobile app, but provider verification is intentionally not configured in Phase 1.
+The development sign-in accepts an email and display name and is disabled whenever `APP_ENV=production`. Production Sign in with Apple, secure care-circle invitations, and Gmail SMTP are configured through the environment variables documented in [Production Identity & Care Circle](docs/production-identity-care-circle.md).
 
 ## Validation
 
@@ -38,4 +38,4 @@ cd mobile && npm test -- --runInBand
 cd mobile && npm run typecheck
 ```
 
-See [architecture](docs/architecture.md), [data model](docs/data-model.md), the [Phase 6 handoff](docs/phase-6.md), and the [Phase 7 handoff](docs/phase-7.md).
+See [architecture](docs/architecture.md), [data model](docs/data-model.md), the [Phase 7 handoff](docs/phase-7.md), and [Production Identity & Care Circle](docs/production-identity-care-circle.md).

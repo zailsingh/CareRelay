@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Redirect, router } from 'expo-router';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
+import { Href, Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,11 +20,22 @@ import { useAuth } from '@/providers/AuthProvider';
 import { colors } from '@/theme/colors';
 
 export default function SignInScreen() {
-  const { token, loading, initializationError, retryInitialization, signIn } = useAuth();
+  const {
+    token,
+    loading,
+    initializationError,
+    retryInitialization,
+    signIn,
+    signInWithApple,
+  } = useAuth();
+  const { inviteToken } = useLocalSearchParams<{ inviteToken?: string | string[] }>();
   const [email, setEmail] = useState('alex@example.com');
   const [displayName, setDisplayName] = useState('Alex');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const devLoginEnabled = process.env.EXPO_PUBLIC_APP_ENV !== 'production';
+  const pendingInvite = Array.isArray(inviteToken) ? inviteToken[0] : inviteToken;
+  const nextPath = pendingInvite ? `/invite/${encodeURIComponent(pendingInvite)}` : '/';
 
   if (loading) return <LoadingScreen />;
   if (token) return <Redirect href="/(tabs)" />;
@@ -36,9 +49,46 @@ export default function SignInScreen() {
     setError(null);
     try {
       await signIn(email, displayName);
-      router.replace('/(tabs)');
+      router.replace(nextPath as Href);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to sign in.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const appleSignIn = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const rawNonce = Array.from(await Crypto.getRandomBytesAsync(32), (byte) =>
+        byte.toString(16).padStart(2, '0'),
+      ).join('');
+      const state = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce,
+      );
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+        state,
+      });
+      if (credential.state !== state || !credential.identityToken) {
+        throw new Error('Apple Sign-In could not be verified. Please try again.');
+      }
+      const displayName = [credential.fullName?.givenName, credential.fullName?.familyName]
+        .filter(Boolean)
+        .join(' ');
+      await signInWithApple(credential.identityToken, rawNonce, displayName || undefined);
+      router.replace(nextPath as Href);
+    } catch (cause) {
+      if ((cause as { code?: string }).code !== 'ERR_REQUEST_CANCELED') {
+        setError(cause instanceof Error ? cause.message : 'Unable to sign in with Apple.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -53,6 +103,19 @@ export default function SignInScreen() {
         <Text style={styles.subtitle}>A calm, shared place for families supporting someone they care about.</Text>
 
         <View style={styles.form}>
+          {Platform.OS === 'ios' ? (
+            <AppleAuthentication.AppleAuthenticationButton
+              accessibilityLabel="Continue with Apple"
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+              cornerRadius={14}
+              onPress={() => void appleSignIn()}
+              style={styles.nativeAppleButton}
+            />
+          ) : null}
+          {devLoginEnabled ? (
+            <>
+              <Text style={styles.devHeading}>Development sign-in</Text>
           <Text style={styles.label}>Your name</Text>
           <TextInput
             accessibilityLabel="Your name"
@@ -88,11 +151,11 @@ export default function SignInScreen() {
           >
             {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Continue with DEV login</Text>}
           </Pressable>
-          <Pressable accessibilityRole="button" disabled style={styles.appleButton}>
-            <Ionicons name="logo-apple" size={20} color={colors.ink} />
-            <Text style={styles.appleText}>Continue with Apple</Text>
-          </Pressable>
-          <Text style={styles.note}>Apple Sign-In will be enabled when production credentials are configured.</Text>
+            </>
+          ) : null}
+          {Platform.OS !== 'ios' ? (
+            <Text style={styles.note}>Sign in with Apple is available in the iOS app.</Text>
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -107,6 +170,8 @@ const styles = StyleSheet.create({
   title: { color: colors.ink, fontSize: 36, lineHeight: 42, fontWeight: '800', letterSpacing: -1, marginTop: 8 },
   subtitle: { color: colors.muted, fontSize: 17, lineHeight: 25, marginTop: 12 },
   form: { marginTop: 32 },
+  nativeAppleButton: { width: '100%', height: 54, marginBottom: 22 },
+  devHeading: { color: colors.muted, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 },
   label: { color: colors.ink, fontSize: 14, fontWeight: '700', marginBottom: 8 },
   input: { minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: 16, fontSize: 16, marginBottom: 18 },
   error: { color: colors.error, fontSize: 14, marginBottom: 12 },
@@ -115,8 +180,5 @@ const styles = StyleSheet.create({
   buttonPressed: { backgroundColor: colors.primaryPressed },
   disabled: { opacity: 0.65 },
   buttonText: { color: colors.surface, fontSize: 16, fontWeight: '700' },
-  appleButton: { minHeight: 54, borderRadius: 14, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 12, opacity: 0.48 },
-  appleText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
   note: { color: colors.muted, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 10 },
 });
-

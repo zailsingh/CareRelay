@@ -31,6 +31,13 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if user.deletion_requested_at is not None or (
+        user.identities and all(identity.revoked_at is not None for identity in user.identities)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication identity is no longer active",
+        )
     return user
 
 

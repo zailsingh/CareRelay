@@ -107,4 +107,9 @@ def test_timezone_validation_and_profile_audits(client: TestClient, db: Session)
     )
     assert invalid.status_code == 422
     actions = db.scalars(select(AuditLog.action).order_by(AuditLog.created_at)).all()
-    assert actions == [AuditAction.SUBJECT_CHANGED, AuditAction.TIMEZONE_CHANGED]
+    assert actions == [
+        AuditAction.CARE_PROFILE_CREATED,
+        AuditAction.INITIAL_ADMIN_CREATED,
+        AuditAction.SUBJECT_CHANGED,
+        AuditAction.TIMEZONE_CHANGED,
+    ]

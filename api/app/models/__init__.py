@@ -4,6 +4,8 @@ from app.models.care_event import CareEvent
 from app.models.care_membership import CareMembership
 from app.models.care_profile import CareProfile
 from app.models.chat import ChatAttachment, ChatMessage, ChatReadState, ChatRoom
+from app.models.identity import UserIdentity
+from app.models.invitation import CareInvitation
 from app.models.medication import (
     Medication,
     MedicationDoseRecord,
@@ -21,6 +23,8 @@ __all__ = [
     "ChatMessage",
     "ChatReadState",
     "ChatRoom",
+    "CareInvitation",
+    "UserIdentity",
     "Medication",
     "MedicationDoseRecord",
     "MedicationSchedule",

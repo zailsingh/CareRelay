@@ -1,6 +1,6 @@
 export type User = {
   id: string;
-  email: string;
+  email: string | null;
   display_name: string;
   created_at: string;
 };
@@ -26,9 +26,31 @@ export type CareMembership = {
   id: string;
   user_id: string;
   display_name: string;
-  email: string;
+  email: string | null;
   role: CareRole;
   created_at: string;
+};
+
+export type CareInvitation = {
+  id: string;
+  care_profile_id: string;
+  invited_email: string;
+  intended_role: 'family' | 'carer';
+  is_subject_invite: boolean;
+  status: 'pending' | 'accepted' | 'expired' | 'revoked';
+  expires_at: string;
+  accepted_at: string | null;
+  email_sent_at: string | null;
+  delivery_status: 'sent' | 'failed' | 'pending';
+  accept_url: string | null;
+  created_at: string;
+};
+
+export type InvitationAcceptResult = {
+  care_profile_id: string;
+  membership_id: string;
+  role: CareRole;
+  subject_linked: boolean;
 };
 
 export const careEventTypes = [
@@ -368,12 +390,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, display_name: displayName }),
     }),
+  appleLogin: (identityToken: string, nonce: string, displayName?: string) =>
+    request<AuthResponse>('/auth/apple', {
+      method: 'POST',
+      body: JSON.stringify({
+        identity_token: identityToken,
+        nonce,
+        display_name: displayName || null,
+      }),
+    }),
   me: (token: string) => request<User>('/auth/me', {}, token),
+  deleteAccount: (token: string) =>
+    request<void>('/auth/account', { method: 'DELETE' }, token),
   profiles: (token: string) => request<CareProfile[]>('/care-profiles', {}, token),
-  createProfile: (token: string, name: string, timezone: string) =>
+  createProfile: (token: string, name: string, timezone: string, forSelf = false) =>
     request<CareProfile>(
       '/care-profiles',
-      { method: 'POST', body: JSON.stringify({ name, timezone }) },
+      { method: 'POST', body: JSON.stringify({ name, timezone, for_self: forSelf }) },
       token,
     ),
   updateProfile: (
@@ -388,6 +421,55 @@ export const api = {
     ),
   members: (token: string, profileId: string) =>
     request<CareMembership[]>(`/care-profiles/${profileId}/members`, {}, token),
+  updateMemberRole: (
+    token: string,
+    profileId: string,
+    membershipId: string,
+    role: 'admin' | 'family' | 'carer',
+  ) => request<CareMembership>(
+    `/care-profiles/${profileId}/members/${membershipId}`,
+    { method: 'PATCH', body: JSON.stringify({ role }) },
+    token,
+  ),
+  removeMember: (token: string, profileId: string, membershipId: string) =>
+    request<void>(
+      `/care-profiles/${profileId}/members/${membershipId}`,
+      { method: 'DELETE' },
+      token,
+    ),
+  invitations: (token: string, profileId: string) =>
+    request<CareInvitation[]>(`/care-profiles/${profileId}/invitations`, {}, token),
+  createInvitation: (
+    token: string,
+    profileId: string,
+    payload: {
+      invited_email: string;
+      intended_role: 'family' | 'carer';
+      is_subject_invite: boolean;
+    },
+  ) => request<CareInvitation>(
+    `/care-profiles/${profileId}/invitations`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
+  ),
+  resendInvitation: (token: string, profileId: string, invitationId: string) =>
+    request<CareInvitation>(
+      `/care-profiles/${profileId}/invitations/${invitationId}/resend`,
+      { method: 'POST' },
+      token,
+    ),
+  revokeInvitation: (token: string, profileId: string, invitationId: string) =>
+    request<void>(
+      `/care-profiles/${profileId}/invitations/${invitationId}`,
+      { method: 'DELETE' },
+      token,
+    ),
+  acceptInvitation: (token: string, invitationToken: string) =>
+    request<InvitationAcceptResult>(
+      '/invitations/accept',
+      { method: 'POST', body: JSON.stringify({ token: invitationToken }) },
+      token,
+    ),
   checkins: (token: string, profileId: string, limit = 100) =>
     request<WellbeingCheckin[]>(
       `/care-profiles/${profileId}/wellbeing-checkins?limit=${limit}`,

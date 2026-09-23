@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentUser, DbSession, ProfileAdminAccess, ProfileMemberAccess
@@ -13,6 +13,7 @@ from app.schemas.care_profile import (
     CareProfileUpdate,
     MembershipCreate,
     MembershipRead,
+    MembershipRoleUpdate,
 )
 from app.services.audit import add_audit_entry
 
@@ -51,11 +52,30 @@ def create_care_profile(
         name=payload.name.strip(),
         timezone=payload.timezone,
         created_by_id=current_user.id,
+        subject_user_id=current_user.id if payload.for_self else None,
     )
     membership = CareMembership(care_profile=profile, user_id=current_user.id, role=CareRole.ADMIN)
     db.add_all([profile, membership])
     db.flush()
     db.add(ChatRoom(care_profile_id=profile.id, name="Family chat"))
+    add_audit_entry(
+        db,
+        care_profile_id=profile.id,
+        actor_user_id=current_user.id,
+        action=AuditAction.CARE_PROFILE_CREATED,
+        target_type="care_profile",
+        target_id=profile.id,
+        after_state={"for_self": payload.for_self},
+    )
+    add_audit_entry(
+        db,
+        care_profile_id=profile.id,
+        actor_user_id=current_user.id,
+        action=AuditAction.INITIAL_ADMIN_CREATED,
+        target_type="care_membership",
+        target_id=membership.id,
+        after_state={"role": CareRole.ADMIN.value},
+    )
     db.commit()
     db.refresh(profile)
     db.refresh(membership)
@@ -189,3 +209,97 @@ def add_member(
         role=membership.role,
         created_at=membership.created_at,
     )
+
+
+def _membership_or_404(db: DbSession, profile_id: UUID, membership_id: UUID) -> CareMembership:
+    membership = db.scalar(
+        select(CareMembership).where(
+            CareMembership.id == membership_id,
+            CareMembership.care_profile_id == profile_id,
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    return membership
+
+
+def _protect_last_admin(db: DbSession, membership: CareMembership) -> None:
+    if membership.role != CareRole.ADMIN:
+        return
+    count = db.scalar(
+        select(func.count(CareMembership.id)).where(
+            CareMembership.care_profile_id == membership.care_profile_id,
+            CareMembership.role == CareRole.ADMIN,
+        )
+    )
+    if int(count or 0) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Transfer administration before changing the final administrator",
+        )
+
+
+@router.patch("/{care_profile_id}/members/{membership_id}", response_model=MembershipRead)
+def change_member_role(
+    care_profile_id: UUID,
+    membership_id: UUID,
+    payload: MembershipRoleUpdate,
+    db: DbSession,
+    current_user: CurrentUser,
+    access: ProfileAdminAccess,
+) -> MembershipRead:
+    membership = _membership_or_404(db, access.profile.id, membership_id)
+    if membership.role == CareRole.ADMIN and payload.role != CareRole.ADMIN:
+        _protect_last_admin(db, membership)
+    previous = membership.role
+    membership.role = payload.role
+    add_audit_entry(
+        db,
+        care_profile_id=access.profile.id,
+        actor_user_id=current_user.id,
+        action=AuditAction.MEMBERSHIP_ROLE_CHANGED,
+        target_type="care_membership",
+        target_id=membership.id,
+        before_state={"role": previous.value},
+        after_state={"role": payload.role.value},
+    )
+    db.commit()
+    user = db.get(User, membership.user_id)
+    assert user is not None
+    return MembershipRead(
+        id=membership.id,
+        user_id=user.id,
+        display_name=user.display_name,
+        email=user.email,
+        role=membership.role,
+        created_at=membership.created_at,
+    )
+
+
+@router.delete("/{care_profile_id}/members/{membership_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_member(
+    care_profile_id: UUID,
+    membership_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+    access: ProfileAdminAccess,
+) -> Response:
+    membership = _membership_or_404(db, access.profile.id, membership_id)
+    _protect_last_admin(db, membership)
+    if access.profile.subject_user_id == membership.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Unlink or replace the profile subject before removing this member",
+        )
+    add_audit_entry(
+        db,
+        care_profile_id=access.profile.id,
+        actor_user_id=current_user.id,
+        action=AuditAction.MEMBERSHIP_REMOVED,
+        target_type="care_membership",
+        target_id=membership.id,
+        before_state={"role": membership.role.value, "user_id": str(membership.user_id)},
+    )
+    db.delete(membership)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

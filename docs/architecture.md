@@ -29,13 +29,23 @@ The application exposes unversioned liveness/readiness endpoints and versioned p
 * `GET /health/ready` proves that the API can query PostgreSQL.
 * `/api/v1/auth/*` owns identity and access-token creation.
 * `/api/v1/care-profiles/*` owns care profiles and membership.
+* `/api/v1/care-profiles/{id}/invitations` owns admin invitation lifecycle.
+* `/api/v1/invitations/accept` consumes an invitation for an authenticated user.
 * `/api/v1/care-profiles/{id}/chat/*` owns durable profile chat and unread state.
 * `/api/v1/care-profiles/{id}/chat/ws` delivers transient realtime chat signals.
 * `/api/v1/care-profiles/{id}/ask` orchestrates deterministic care-data tools and a configured AI provider.
 
 The development login creates or reuses a user by normalized email. It exists only when `APP_ENV` is `development` or `test`; production returns 404. Tokens are signed JWTs with a user UUID in `sub` and an expiry. The mobile client stores native tokens in the platform's secure storage.
 
-Apple authentication uses an `AppleTokenVerifier` interface. The endpoint, request shape, account-link field, and dependency boundary exist, while the default verifier fails closed until Apple credentials and claim verification are configured.
+Apple authentication uses an `AppleTokenVerifier` interface. In production, the verifier validates
+Apple's RS256 signature through JWKS plus issuer, audience, expiry, subject, and nonce. Provider
+identities are keyed by Apple's stable subject rather than email. An unconfigured verifier fails
+closed, and revoked identities invalidate subsequent requests. The same verifier boundary validates
+Apple server-to-server notification payloads.
+
+Invitation email delivery uses an `EmailProvider` boundary with mock and Gmail SMTP implementations.
+The API persists only a hash of each expiring token. Acceptance combines possession of that token
+with an authenticated identity, then applies membership and optional subject linking transactionally.
 
 ## Authorization invariant
 

@@ -12,7 +12,7 @@ type CareProfileContextValue = {
   wellbeingRevision: number;
   careEventRevision: number;
   setActiveProfileId: (id: string) => void;
-  createProfile: (name: string) => Promise<void>;
+  createProfile: (name: string, forSelf?: boolean) => Promise<CareProfile | null>;
   refreshProfiles: () => Promise<void>;
   notifyWellbeingChanged: () => void;
   notifyCareEventChanged: () => void;
@@ -55,11 +55,12 @@ export function CareProfileProvider({ children }: PropsWithChildren) {
 
   useEffect(() => { void refreshProfiles(); }, [refreshProfiles]);
 
-  const createProfile = useCallback(async (name: string) => {
-    if (!token) return;
-    const created = await api.createProfile(token, name, deviceTimezone());
+  const createProfile = useCallback(async (name: string, forSelf = false) => {
+    if (!token) return null;
+    const created = await api.createProfile(token, name, deviceTimezone(), forSelf);
     setProfiles((current) => [created, ...current]);
     setActiveProfileId(created.id);
+    return created;
   }, [token]);
 
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) ?? null;

@@ -10,6 +10,7 @@ from app.models.enums import CareRole
 class CareProfileCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     timezone: str = Field(default="UTC", min_length=1, max_length=100)
+    for_self: bool = False
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -57,8 +58,18 @@ class MembershipRead(BaseModel):
     id: UUID
     user_id: UUID
     display_name: str
-    email: EmailStr
+    email: EmailStr | None
     role: CareRole
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MembershipRoleUpdate(BaseModel):
+    role: CareRole
+
+    @model_validator(mode="after")
+    def disallow_new_cared_person_role(self) -> "MembershipRoleUpdate":
+        if self.role == CareRole.CARED_PERSON:
+            raise ValueError("cared_person is retained for legacy compatibility only")
+        return self

@@ -13,7 +13,9 @@ type AuthContextValue = {
   initializationError: string | null;
   retryInitialization: () => void;
   signIn: (email: string, displayName: string) => Promise<void>;
+  signInWithApple: (identityToken: string, nonce: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -74,15 +76,55 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setUser(result.user);
   }, []);
 
+  const signInWithApple = useCallback(async (
+    identityToken: string,
+    nonce: string,
+    displayName?: string,
+  ) => {
+    setInitializationError(null);
+    const result = await api.appleLogin(identityToken, nonce, displayName);
+    await writeToken(result.access_token);
+    setToken(result.access_token);
+    setUser(result.user);
+  }, []);
+
   const signOut = useCallback(async () => {
     await writeToken(null);
     setToken(null);
     setUser(null);
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    if (!token) return;
+    await api.deleteAccount(token);
+    await writeToken(null);
+    setToken(null);
+    setUser(null);
+  }, [token]);
+
   const value = useMemo(
-    () => ({ token, user, loading, initializationError, retryInitialization, signIn, signOut }),
-    [token, user, loading, initializationError, retryInitialization, signIn, signOut],
+    () => ({
+      token,
+      user,
+      loading,
+      initializationError,
+      retryInitialization,
+      signIn,
+      signInWithApple,
+      signOut,
+      deleteAccount,
+    }),
+    [
+      token,
+      user,
+      loading,
+      initializationError,
+      retryInitialization,
+      signIn,
+      signInWithApple,
+      signOut,
+      deleteAccount,
+    ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

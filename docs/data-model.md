@@ -3,6 +3,7 @@
 ```text
 User 1 ---- * CareMembership * ---- 1 CareProfile
   |                                      |
+  +-- * UserIdentity                    +-- * CareInvitation
   +-- created profiles ------------------+
 ```
 
@@ -11,9 +12,10 @@ User 1 ---- * CareMembership * ---- 1 CareProfile
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | UUID | Primary key |
-| `email` | varchar(320) | Normalized lowercase, unique |
+| `email` | varchar(320), nullable | Initial/contact email when available; unique but not an identity key |
 | `display_name` | varchar(120) | User-facing name |
 | `apple_subject` | varchar(255), nullable | Stable Apple identity subject, unique |
+| `deletion_requested_at` | timestamptz, nullable | Account access disabled; shared history retained |
 | `created_at` | timestamptz | Server generated |
 
 ## CareProfile
@@ -29,6 +31,21 @@ User 1 ---- * CareMembership * ---- 1 CareProfile
 
 Creating a profile atomically creates an administrator membership for its creator.
 
+## UserIdentity
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID | Primary key |
+| `user_id` | UUID | Cascading reference to `User` |
+| `provider` | varchar(30) | Currently `apple` |
+| `provider_subject` | varchar(255) | Stable provider key; unique with provider |
+| `email_at_signup` | varchar(320), nullable | Initial provider email, including Apple relay addresses |
+| `revoked_at` | timestamptz, nullable | Revoked identities cannot authenticate |
+| `created_at` | timestamptz | Server generated |
+
+`User.apple_subject` remains as a legacy compatibility/backfill source. New account resolution uses
+`UserIdentity(provider, provider_subject)` and never email.
+
 ## CareMembership
 
 | Field | Type | Notes |
@@ -40,6 +57,14 @@ Creating a profile atomically creates an administrator membership for its creato
 | `created_at` | timestamptz | Server generated |
 
 The pair `(care_profile_id, user_id)` is unique. Both foreign-key directions are indexed for authorization lookups. Role values are constrained in the database as well as in API validation.
+
+## CareInvitation
+
+Care invitations store a delivery email, intended family/carer membership role, explicit subject
+intent, creator, expiry/acceptance/revocation timestamps, delivery outcome, and a SHA-256 token
+hash. Raw invitation tokens are never persisted. Status is derived as pending, accepted, expired,
+or revoked. Acceptance records the authenticated user and conditionally links
+`CareProfile.subject_user_id`; invited email is context only and is not an identity key.
 
 ## Phase 2: WellbeingCheckin
 
@@ -59,7 +84,9 @@ projections so the existing timeline remains compatible.
 
 ## Phase 3: AuditLog
 
-Append-only application audit rows capture subject/timezone changes and CareEvent creation, update, or deletion. Audit data has no normal mutation API.
+Append-only application audit rows capture profile/admin creation, subject/timezone changes,
+CareEvent changes, medication/report operations, invitations, membership changes, and account
+deletion requests. Audit data has no normal mutation API and excludes credentials and raw tokens.
 
 ## Phase 4: ChatRoom and ChatMessage
 
