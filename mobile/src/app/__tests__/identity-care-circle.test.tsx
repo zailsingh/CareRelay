@@ -10,8 +10,8 @@ import { useCareProfiles } from '@/providers/CareProfileProvider';
 const mockReplace = jest.fn();
 const mockSearchParams = jest.fn(() => ({}));
 const mockAppleSignIn = jest.fn();
-const mockRandomBytes = jest.fn(async () => new Uint8Array([1, 2, 255]));
-const mockDigest = jest.fn(async () => 'hashed-nonce');
+const mockRandomBytes = jest.fn(async (_count?: number) => new Uint8Array([1, 2, 255]));
+const mockDigest = jest.fn(async (_algorithm?: unknown, _value?: unknown) => 'hashed-nonce');
 
 jest.mock('expo-router', () => {
   const { Text } = require('react-native');
@@ -37,8 +37,8 @@ jest.mock('expo-apple-authentication', () => {
 
 jest.mock('expo-crypto', () => ({
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
-  digestStringAsync: () => mockDigest(),
-  getRandomBytesAsync: () => mockRandomBytes(),
+  digestStringAsync: (algorithm: unknown, value: unknown) => mockDigest(algorithm, value),
+  getRandomBytesAsync: (count: number) => mockRandomBytes(count),
   randomUUID: () => 'state-123',
 }));
 
@@ -98,6 +98,13 @@ describe('production identity and onboarding', () => {
     expect(screen.queryByText('Continue with DEV login')).toBeNull();
   });
 
+  it('shows both Apple and DEV login in development', () => {
+    process.env.EXPO_PUBLIC_APP_ENV = 'development';
+    render(<SignInScreen />);
+    expect(screen.getByText('Continue with Apple')).toBeTruthy();
+    expect(screen.getByText('Continue with DEV login')).toBeTruthy();
+  });
+
   it('completes Apple authentication with nonce and state', async () => {
     const signInWithApple = jest.fn().mockResolvedValue(undefined);
     jest.mocked(useAuth).mockReturnValue({ ...baseAuth, signInWithApple });
@@ -117,7 +124,25 @@ describe('production identity and onboarding', () => {
       nonce: 'hashed-nonce',
       state: 'state-123',
     }));
+    expect(mockRandomBytes).toHaveBeenCalledWith(32);
+    expect(mockDigest).toHaveBeenCalledWith('SHA-256', '0102ff');
     expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+
+  it('shows a useful error when Apple omits the identity token', async () => {
+    const signInWithApple = jest.fn();
+    jest.mocked(useAuth).mockReturnValue({ ...baseAuth, signInWithApple });
+    mockAppleSignIn.mockResolvedValue({
+      state: 'state-123',
+      identityToken: null,
+      fullName: null,
+    });
+    render(<SignInScreen />);
+    fireEvent.press(screen.getByText('Continue with Apple'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(
+      /Apple Sign-In could not be verified/,
+    ));
+    expect(signInWithApple).not.toHaveBeenCalled();
   });
 
   it('handles Apple cancellation without displaying an error', async () => {

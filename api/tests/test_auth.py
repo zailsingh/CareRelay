@@ -29,6 +29,16 @@ def test_dev_login_rejects_blank_display_name(client: TestClient) -> None:
 
 
 def test_apple_endpoint_is_present_but_unconfigured(client: TestClient) -> None:
-    response = client.post("/api/v1/auth/apple", json={"identity_token": "example-token"})
+    response = client.post(
+        "/api/v1/auth/apple",
+        json={"identity_token": "example-token", "nonce": "n" * 32},
+    )
     assert response.status_code == 503
     assert response.json()["detail"] == "Apple Sign-In is not configured"
+
+
+def test_apple_endpoint_requires_identity_token_and_nonce(client: TestClient) -> None:
+    missing_token = client.post("/api/v1/auth/apple", json={"nonce": "n" * 32})
+    missing_nonce = client.post("/api/v1/auth/apple", json={"identity_token": "example-token"})
+    assert missing_token.status_code == 422
+    assert missing_nonce.status_code == 422
