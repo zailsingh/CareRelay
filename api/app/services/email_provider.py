@@ -40,6 +40,8 @@ def invitation_message(invitation: InvitationEmail, sender: str) -> EmailMessage
         f"{invitation.inviter_name} has invited you to join "
         f"{invitation.profile_name}'s CareRelay care circle as {context}.\n\n"
         f"Accept invitation: {invitation.accept_url}\n\n"
+        "If the button does not work, copy this link into Safari:\n"
+        f"{invitation.accept_url}\n\n"
         f"This invitation expires in {invitation.expires_hours} hours. "
         "Sign in with Apple to accept it."
     )
@@ -49,7 +51,11 @@ def invitation_message(invitation: InvitationEmail, sender: str) -> EmailMessage
         f"<p>{escape(invitation.inviter_name)} has invited you to join "
         f"{escape(invitation.profile_name)}'s CareRelay care circle as "
         f"{escape(context)}.</p>"
-        f'<p><a href="{safe_url}">Accept invitation</a></p>'
+        f'<p><a href="{safe_url}" style="background:#245c52;border-radius:8px;color:#ffffff;'
+        'display:inline-block;font-weight:700;padding:12px 18px;text-decoration:none">'
+        "Accept invitation</a></p>"
+        "<p>If the button does not work, copy this link into Safari:<br>"
+        f'<a href="{safe_url}">{safe_url}</a></p>'
         f"<p>This invitation expires in {invitation.expires_hours} hours. "
         "Sign in with Apple to accept it.</p>"
     )

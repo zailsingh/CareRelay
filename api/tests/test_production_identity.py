@@ -468,6 +468,14 @@ def test_mock_and_gmail_email_providers_exclude_care_data(monkeypatch) -> None:
     assert mock.sent == [invitation]
     message = invitation_message(invitation, "CareRelay <care@example.com>")
     rendered = message.as_string()
+    plain_body = message.get_body(preferencelist=("plain",)).get_content()
+    html_body = message.get_body(preferencelist=("html",)).get_content()
+    assert 'href="https://example.com/invite/token"' in html_body
+    assert ">Accept invitation</a>" in html_body
+    assert "If the button does not work, copy this link into Safari:" in html_body
+    assert "https://example.com/invite/token" in html_body
+    assert "If the button does not work, copy this link into Safari:" in plain_body
+    assert "https://example.com/invite/token" in plain_body
     assert "medication" not in rendered.lower()
     assert "wellbeing" not in rendered.lower()
 
@@ -506,6 +514,17 @@ def test_mock_and_gmail_email_providers_exclude_care_data(monkeypatch) -> None:
     GmailSMTPProvider(settings).send_invitation(invitation)
     assert "starttls" in calls and "login" in calls and "send" in calls and "close" in calls
     assert "app-password" not in " ".join(calls)
+
+
+def test_development_invitation_landing_page_opens_existing_app_route(
+    client: TestClient,
+) -> None:
+    response = client.get("/invite/token-with_symbols", follow_redirects=False)
+    assert response.status_code == 200
+    assert 'content="0;url=carerelay://invite/token-with_symbols"' in response.text
+    assert 'href="carerelay://invite/token-with_symbols"' in response.text
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"
 
 
 def test_final_admin_protected_and_role_management_audited(client: TestClient, db: Session) -> None:

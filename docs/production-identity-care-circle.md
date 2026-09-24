@@ -34,7 +34,7 @@ The root route loads memberships after authentication. A user with none enters o
 
 An admin can create, resend, or revoke an invitation. Resending rotates the token and expiry; the old token immediately fails. Acceptance requires both the token and a signed-in account. It creates a membership only if one does not exist, preserving an existing role. A subject invitation links `subject_user_id` only when no conflicting subject exists; conflicts return 409 and never overwrite the current subject.
 
-The configured link is `${INVITE_BASE_URL}/<token>`. Expo routes `/invite/[token]`, preserves the token through sign-in, asks for explicit acceptance, refreshes memberships, and opens the app. The custom `carerelay://invite` base is suitable for development. Production should use an associated HTTPS domain for universal links and provide a minimal browser/App Store fallback; that hosting work is not part of this repository phase.
+The configured email link is `${INVITE_BASE_URL}/<token>`. For physical-device development, set `INVITE_BASE_URL=http://<LAN-IP>:<API-PORT>/invite`; the backend landing page hands the browser to `carerelay://invite/<token>`. Expo then routes `/invite/[token]`, preserves the token through sign-in, asks for explicit acceptance, refreshes memberships, and opens the app. Production must set `INVITE_BASE_URL=https://<associated-domain>/invite`, serve an Apple App Site Association file for `/invite/*`, and add that host to the iOS `applinks:` entitlement. No production domain is assumed by this repository.
 
 ## Email delivery
 

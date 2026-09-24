@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_use_tls: bool = True
     email_from: str = ""
-    invite_base_url: str = "carerelay://invite"
+    invite_base_url: str = "http://localhost:8000/invite"
     invite_expire_hours: int = 168
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:8081",

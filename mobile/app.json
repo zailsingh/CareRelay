@@ -8,11 +8,11 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.carerelay.mobile",
+      "bundleIdentifier": "au.vaultwest.carerelay",
       "usesAppleSignIn": true
     },
     "android": {
-      "package": "com.carerelay.mobile"
+      "package": "au.vaultwest.carerelay"
     },
     "web": {
       "bundler": "metro"
